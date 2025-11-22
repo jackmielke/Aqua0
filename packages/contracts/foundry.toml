@@ -2,5 +2,19 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=../../node_modules/@openzeppelin/contracts/",
+    "@1inch/solidity-utils/=../../node_modules/@1inch/solidity-utils/",
+    "aqua/=../aqua/src/"
+]
+allow_paths = ["../aqua", "../../node_modules"]
+fs_permissions = [
+    { access = "read", path = "../aqua" },
+    { access = "read", path = "../../node_modules" }
+]
+via_ir = true
+optimizer = true
+optimizer_runs = 200
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
