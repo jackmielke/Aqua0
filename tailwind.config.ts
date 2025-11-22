@@ -57,6 +57,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        cosmic: {
+          deep: "hsl(var(--cosmic-deep))",
+          mid: "hsl(var(--cosmic-mid))",
+          glow: "hsl(var(--cosmic-glow))",
+          highlight: "hsl(var(--cosmic-highlight))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -80,10 +86,31 @@ export default {
             height: "0",
           },
         },
+        "float": {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%": { transform: "translateY(-20px)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { 
+            opacity: "0.6",
+            transform: "scale(1)",
+          },
+          "50%": { 
+            opacity: "1",
+            transform: "scale(1.1)",
+          },
+        },
+        "twinkle": {
+          "0%, 100%": { opacity: "0.3" },
+          "50%": { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float": "float 3s ease-in-out infinite",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "twinkle": "twinkle 2s ease-in-out infinite",
       },
     },
   },

@@ -1,11 +1,26 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { CosmicBackground } from "@/components/CosmicBackground";
+import { VibeCatcherGame } from "@/components/VibeCatcherGame";
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="relative min-h-screen cosmic-bg overflow-hidden">
+      <CosmicBackground />
+      
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12">
+        <div className="text-center mb-12 animate-float">
+          <h1 className="text-7xl md:text-9xl font-bold mb-4 text-glow tracking-tight">
+            VIBE MAXING
+          </h1>
+          <p className="text-xl md:text-2xl text-muted-foreground font-light tracking-wide">
+            ETH Global Hackathon
+          </p>
+        </div>
+
+        <VibeCatcherGame />
+
+        <div className="absolute bottom-8 text-center text-sm text-muted-foreground">
+          <p>Built for ETH Global 2025</p>
+        </div>
       </div>
     </div>
   );
