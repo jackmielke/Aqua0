@@ -2,16 +2,24 @@
 
 This directory contains scripts for deploying and testing Aqua trading strategies on testnets.
 
+## Quick Start
+
+**For Base Sepolia with existing AquaRouter**, see [QUICKSTART.md](../QUICKSTART.md) for a streamlined guide.
+
 ## Prerequisites
 
 1. **Set up environment variables** in `.env` file:
 
 ```bash
 # Your private key (without 0x prefix)
-PRIVATE_KEY=your_private_key_here
+DEPLOYER_KEY=your_private_key_here
 
 # RPC URL for your testnet (e.g., Sepolia, Base Sepolia, etc.)
 RPC_URL=https://sepolia.infura.io/v3/YOUR_PROJECT_ID
+
+# AquaRouter address (REQUIRED)
+# This should be your deployed AquaRouter contract address
+AQUA_ROUTER=0xYourAquaRouterAddress
 
 # Etherscan API key for verification (optional)
 ETHERSCAN_API_KEY=your_etherscan_api_key
@@ -34,9 +42,9 @@ forge script script/DeployMocks.s.sol:DeployMocks \
 
 **Output**: Creates `script/deployed-mocks.txt` with token addresses
 
-### Step 2: Deploy Aqua & Strategies
+### Step 2: Deploy Strategies
 
-Deploy the Aqua protocol and both trading strategies:
+Deploy both trading strategies (using your existing AquaRouter):
 
 ```bash
 forge script script/DeployStrategies.s.sol:DeployStrategies \
