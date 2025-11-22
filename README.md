@@ -1,73 +1,81 @@
-# Welcome to your Lovable project
+# Vibe Maxing
 
-## Project info
+An interactive web experience built for ETH Global Hackathon.
 
-**URL**: https://lovable.dev/projects/48867fe8-473a-4a60-a253-5395e347a7a6
+## Tech Stack
 
-## How can I edit this code?
+- React 18 with TypeScript
+- Vite for blazing fast development
+- Tailwind CSS for styling
+- shadcn-ui components
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/48867fe8-473a-4a60-a253-5395e347a7a6) and start prompting.
+- Node.js 18+ and pnpm (recommended) or npm
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies with pnpm (recommended)
+pnpm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Or with npm
+npm install
+
+# Start development server
+pnpm dev
+# Or: npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Available Scripts
 
-**Use GitHub Codespaces**
+- `pnpm dev` - Start development server
+- `pnpm build` - Build for production
+- `pnpm preview` - Preview production build locally
+- `pnpm lint` - Run ESLint
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## PNPM Monorepo Compatibility
 
-## What technologies are used for this project?
+This project is fully compatible with PNPM monorepos. The workspace uses:
+- Shared dependencies via PNPM workspace protocol
+- Hoisted node_modules for optimal disk usage
+- Fast, deterministic installs with proper peer dependency handling
 
-This project is built with:
+To use in a monorepo, add this to your root `pnpm-workspace.yaml`:
+```yaml
+packages:
+  - 'packages/*'
+  - 'apps/*'
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Project Structure
 
-## How can I deploy this project?
+```
+src/
+├── components/     # React components
+├── pages/          # Page components
+├── hooks/          # Custom React hooks
+├── lib/            # Utilities
+└── index.css       # Global styles & design tokens
+```
 
-Simply open [Lovable](https://lovable.dev/projects/48867fe8-473a-4a60-a253-5395e347a7a6) and click on Share -> Publish.
+## Deployment
 
-## Can I connect a custom domain to my Lovable project?
+Build the project for production:
+```sh
+pnpm build
+```
 
-Yes, you can!
+The `dist` folder will contain the production-ready static files.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## License
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT
