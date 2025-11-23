@@ -5,17 +5,15 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MarketMakersTab } from "@/components/market-makers-tab"
 import { SwapTab } from "@/components/swap-tab"
-import { LayoutGrid, ArrowLeftRight, HomeIcon, Zap, Globe, Layers } from "lucide-react"
-import { DotLoader } from "@/components/ui/dot-loader"
+import { LayoutGrid, ArrowLeftRight, LogOut } from "lucide-react"
 import MiniKitProvider from "@/components/MiniKitProvider"
-import WorldIDAuth from "@/components/WorldIDAuth"
+import LandingPage from "@/components/LandingPage"
 import "./index.css"
 
 const queryClient = new QueryClient()
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<"home" | "market-makers" | "swap">("home")
-  const [showSplash, setShowSplash] = useState(true)
+  const [activeTab, setActiveTab] = useState<"market-makers" | "swap">("market-makers")
   const [isVerified, setIsVerified] = useState(false)
 
   useEffect(() => {
@@ -27,32 +25,12 @@ const App = () => {
     }
   }, [])
 
-  const game = [
-    [14, 7, 0, 8, 6, 13, 20],
-    [14, 7, 13, 20, 16, 27, 21],
-    [14, 20, 27, 21, 34, 24, 28],
-    [27, 21, 34, 28, 41, 32, 35],
-    [34, 28, 41, 35, 48, 40, 42],
-    [34, 28, 41, 35, 48, 42, 46],
-    [34, 28, 41, 35, 48, 42, 38],
-    [34, 28, 41, 48, 21, 22, 14],
-    [34, 28, 41, 21, 14, 16, 27],
-    [34, 28, 21, 14, 10, 20, 27],
-    [28, 21, 14, 4, 13, 20, 27],
-    [28, 21, 14, 12, 6, 13, 20],
-    [28, 21, 14, 6, 13, 20, 11],
-    [28, 21, 14, 6, 13, 20, 10],
-    [14, 6, 13, 20, 9, 7, 21],
-  ]
+  const handleLogout = () => {
+    localStorage.clear()
+    window.location.reload()
+  }
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false)
-    }, 2500)
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Show login screen if not verified
+  // Show LandingPage if not verified
   if (!isVerified) {
     return (
       <MiniKitProvider>
@@ -60,70 +38,7 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black space-bg p-6">
-              <div className="max-w-md w-full space-y-8 animate-in fade-in zoom-in duration-700">
-                {/* Logo and Title */}
-                <div className="text-center space-y-4">
-                  <div className="w-24 h-24 mx-auto border-4 border-white bg-black flex items-center justify-center rounded-lg">
-                    <img
-                      src="/aqua0-logo.png"
-                      alt="Aqua0 Logo"
-                      className="w-16 h-16 object-contain invert"
-                    />
-                  </div>
-                  <h1 className="text-5xl font-bold tracking-tighter text-white uppercase">AQUA0</h1>
-                  <p className="text-gray-400 font-mono text-sm">Cross-Chain Liquidity Protocol</p>
-                </div>
-
-                {/* Auth Card */}
-                <div className="neo-card p-8 space-y-6">
-                  <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-white uppercase tracking-tight">Welcome</h2>
-                    <p className="text-sm text-gray-400">Verify your humanity to access the protocol</p>
-                  </div>
-
-                  <WorldIDAuth
-                    onSuccess={(nullifierHash) => {
-                      console.log('Verified!', nullifierHash)
-                      setIsVerified(true)
-                    }}
-                    onError={(error) => {
-                      console.error('Verification failed:', error)
-                    }}
-                  />
-
-                  <div className="pt-4 border-t-2 border-white/10">
-                    <p className="text-xs text-gray-500 text-center font-mono">
-                      You need World ID verification to continue
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </MiniKitProvider>
-    )
-  }
-
-  if (showSplash) {
-    return (
-      <MiniKitProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black space-bg">
-              <div className="relative z-10 flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700">
-                <h1 className="text-4xl md:text-6xl font-bold tracking-tighter text-white font-space uppercase">AquaZero</h1>
-                <DotLoader
-                  frames={game}
-                  className="gap-1 scale-150"
-                  dotClassName="bg-white/15 [&.active]:bg-white size-2"
-                  duration={80}
-                />
-              </div>
-            </div>
+            <LandingPage onSuccess={() => setIsVerified(true)} />
           </TooltipProvider>
         </QueryClientProvider>
       </MiniKitProvider>
@@ -156,18 +71,6 @@ const App = () => {
 
             <nav className="flex-1 p-6 space-y-4">
               <button
-                onClick={() => setActiveTab("home")}
-                className={`w-full flex items-center gap-4 px-4 py-4 border-2 transition-all duration-200 group ${
-                  activeTab === "home"
-                    ? "bg-white text-black border-white shadow-[4px_4px_0px_0px_#ffffff]"
-                    : "bg-black text-white border-transparent hover:border-white hover:shadow-[4px_4px_0px_0px_#ffffff]"
-                }`}
-              >
-                <HomeIcon className="w-5 h-5" strokeWidth={2} />
-                <span className="font-bold tracking-wide uppercase">Home</span>
-              </button>
-
-              <button
                 onClick={() => setActiveTab("market-makers")}
                 className={`w-full flex items-center gap-4 px-4 py-4 border-2 transition-all duration-200 group ${
                   activeTab === "market-makers"
@@ -192,7 +95,14 @@ const App = () => {
               </button>
             </nav>
 
-            <div className="p-6 border-t-2 border-white">
+            <div className="p-6 border-t-2 border-white space-y-4">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-4 px-4 py-4 border-2 border-white bg-black text-white hover:bg-white hover:text-black transition-all duration-200"
+              >
+                <LogOut className="w-5 h-5" strokeWidth={2} />
+                <span className="font-bold tracking-wide uppercase">Logout</span>
+              </button>
               <div className="text-xs font-mono text-gray-400 text-center">AQUA0 V1.0 // WORLDCHAIN</div>
             </div>
           </aside>
@@ -215,118 +125,6 @@ const App = () => {
 
           {/* Main Content Area */}
           <div className="pt-20 md:pt-0 min-h-screen">
-            {activeTab === "home" && (
-              <div className="max-w-5xl mx-auto p-6 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {/* Hero Section */}
-                <section className="mb-16 md:mb-24 pt-8 md:pt-16 text-center md:text-left">
-                  <div className="inline-block mb-6 px-3 py-1 border border-white text-xs font-mono uppercase tracking-widest animate-pulse">
-                    Cross-Chain Liquidity Protocol
-                  </div>
-                  <h1 className="text-5xl md:text-8xl font-bold leading-[0.9] tracking-tighter mb-8 uppercase">
-                    Liquidity <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">Unbound</span>
-                  </h1>
-                  <p className="text-lg md:text-xl text-gray-300 max-w-2xl leading-relaxed font-light mb-10">
-                    Solve the capital fragmentation problem. Allocate the same capital to multiple trading strategies across
-                    different blockchains simultaneously.
-                  </p>
-
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <button
-                      onClick={() => setActiveTab("market-makers")}
-                      className="bg-white text-black border-2 border-white px-8 py-4 text-lg font-bold uppercase tracking-wider shadow-[6px_6px_0px_0px_#333] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#333] transition-all"
-                    >
-                      Launch App
-                    </button>
-                    <button className="bg-transparent text-white border-2 border-white px-8 py-4 text-lg font-bold uppercase tracking-wider hover:bg-white hover:text-black transition-colors">
-                      Read Docs
-                    </button>
-                  </div>
-                </section>
-
-                {/* Features Grid */}
-                <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
-                  <div className="neo-card p-8 relative group">
-                    <div className="absolute top-4 right-4">
-                      <Globe className="w-8 h-8" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4 mt-4 uppercase">Cross-Chain</h3>
-                    <p className="text-gray-400 leading-relaxed">
-                      Capital stays in your wallet. Tokens move via LayerZero only when needed for execution.
-                    </p>
-                  </div>
-
-                  <div className="neo-card p-8 relative group">
-                    <div className="absolute top-4 right-4">
-                      <Layers className="w-8 h-8" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4 mt-4 uppercase">SLAC Model</h3>
-                    <p className="text-gray-400 leading-relaxed">
-                      Shared Liquidity Amplification Coefficient. Achieve 3-10x capital efficiency.
-                    </p>
-                  </div>
-
-                  <div className="neo-card p-8 relative group">
-                    <div className="absolute top-4 right-4">
-                      <Zap className="w-8 h-8" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-4 mt-4 uppercase">Auto-Compound</h3>
-                    <p className="text-gray-400 leading-relaxed">
-                      Profits and fees are automatically pushed back to your wallet and compounded.
-                    </p>
-                  </div>
-                </section>
-
-                {/* How it Works */}
-                <section className="border-t-2 border-white pt-16">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                    <div>
-                      <h2 className="text-4xl font-bold mb-8 uppercase tracking-tight">How It Works</h2>
-                      <div className="space-y-8">
-                        <div className="flex gap-6">
-                          <div className="text-4xl font-bold opacity-30">01</div>
-                          <div>
-                            <h4 className="text-xl font-bold mb-2 uppercase">Define Strategy</h4>
-                            <p className="text-gray-400">
-                              Create liquidity strategies for Uniswap on Base using your WorldChain capital.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-6">
-                          <div className="text-4xl font-bold opacity-30">02</div>
-                          <div>
-                            <h4 className="text-xl font-bold mb-2 uppercase">Ship Capital</h4>
-                            <p className="text-gray-400">
-                              Virtual accounting updates your position. No initial token movement required.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-6">
-                          <div className="text-4xl font-bold opacity-30">03</div>
-                          <div>
-                            <h4 className="text-xl font-bold mb-2 uppercase">Earn Yield</h4>
-                            <p className="text-gray-400">
-                              Trades execute against your strategies. Fees accrue in real-time.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="neo-card aspect-square flex items-center justify-center p-12 relative overflow-hidden">
-                      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
-                      <img
-                        src="/aqua0-logo.png"
-                        alt="Aqua0 Diagram"
-                        width={200}
-                        height={200}
-                        className="w-32 h-32 md:w-48 md:h-48 object-contain invert animate-pulse"
-                      />
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )}
-
             {activeTab === "market-makers" && (
               <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <MarketMakersTab />
@@ -344,15 +142,6 @@ const App = () => {
           <nav className="fixed bottom-0 left-0 right-0 bg-black border-t-2 border-white z-50 md:hidden">
             <div className="grid grid-cols-3 h-20">
               <button
-                onClick={() => setActiveTab("home")}
-                className={`flex flex-col items-center justify-center gap-1 border-r-2 border-white/20 transition-colors ${
-                  activeTab === "home" ? "bg-white text-black" : "text-white hover:bg-white/10"
-                }`}
-              >
-                <HomeIcon className="w-6 h-6" strokeWidth={2} />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Home</span>
-              </button>
-              <button
                 onClick={() => setActiveTab("market-makers")}
                 className={`flex flex-col items-center justify-center gap-1 border-r-2 border-white/20 transition-colors ${
                   activeTab === "market-makers" ? "bg-white text-black" : "text-white hover:bg-white/10"
@@ -363,12 +152,19 @@ const App = () => {
               </button>
               <button
                 onClick={() => setActiveTab("swap")}
-                className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+                className={`flex flex-col items-center justify-center gap-1 border-r-2 border-white/20 transition-colors ${
                   activeTab === "swap" ? "bg-white text-black" : "text-white hover:bg-white/10"
                 }`}
               >
                 <ArrowLeftRight className="w-6 h-6" strokeWidth={2} />
                 <span className="text-[10px] font-bold uppercase tracking-wider">Swap</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex flex-col items-center justify-center gap-1 text-white hover:bg-white/10 transition-colors"
+              >
+                <LogOut className="w-6 h-6" strokeWidth={2} />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Logout</span>
               </button>
             </div>
           </nav>
