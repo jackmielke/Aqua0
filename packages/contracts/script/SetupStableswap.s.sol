@@ -60,13 +60,15 @@ contract SetupStableswap is Script {
         console.log("Approved Aqua to spend tokens");
 
         // Create strategy with high amplification for stable pairs
+        // Use deterministic salt for easier testing
+        bytes32 salt = bytes32(0);
         StableswapAMM.Strategy memory strategy = StableswapAMM.Strategy({
             maker: lpAddress,
             token0: usdcAddr,
             token1: usdtAddr,
             feeBps: 4, // 0.04% fee (typical for stableswaps)
             amplificationFactor: 100, // High A for minimal slippage
-            salt: bytes32(uint256(block.timestamp)) // Unique salt
+            salt: salt
         });
 
         // Ship strategy to Aqua
@@ -99,7 +101,7 @@ contract SetupStableswap is Script {
 
         vm.stopBroadcast();
 
-        // Save strategy info
+        // Save strategy info including salt
         string memory output = string.concat(
             "STRATEGY_HASH=",
             vm.toString(strategyHash),
@@ -112,6 +114,9 @@ contract SetupStableswap is Script {
             "\n",
             "TOKEN1=",
             vm.toString(usdtAddr),
+            "\n",
+            "SALT=",
+            vm.toString(salt),
             "\n"
         );
 

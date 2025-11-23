@@ -60,6 +60,8 @@ contract SetupConcentratedLiquidity is Script {
         console.log("Approved Aqua to spend tokens");
 
         // Create strategy with tight price range for USDC/USDT stablecoins
+        // Use deterministic salt for easier testing
+        bytes32 salt = bytes32(0);
         ConcentratedLiquiditySwap.Strategy
             memory strategy = ConcentratedLiquiditySwap.Strategy({
                 maker: lpAddress,
@@ -68,7 +70,7 @@ contract SetupConcentratedLiquidity is Script {
                 feeBps: 5, // 0.05% fee
                 priceLower: 0.99e18, // 0.99 USDT per USDC
                 priceUpper: 1.01e18, // 1.01 USDT per USDC
-                salt: bytes32(uint256(block.timestamp)) // Unique salt
+                salt: salt
             });
 
         // Ship strategy to Aqua
@@ -101,7 +103,7 @@ contract SetupConcentratedLiquidity is Script {
 
         vm.stopBroadcast();
 
-        // Save strategy info
+        // Save strategy info including salt
         string memory output = string.concat(
             "CL_STRATEGY_HASH=",
             vm.toString(strategyHash),
@@ -114,6 +116,9 @@ contract SetupConcentratedLiquidity is Script {
             "\n",
             "CL_TOKEN1=",
             vm.toString(usdtAddr),
+            "\n",
+            "CL_SALT=",
+            vm.toString(salt),
             "\n"
         );
 
