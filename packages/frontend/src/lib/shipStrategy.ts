@@ -1,4 +1,5 @@
 import { MiniKit } from '@worldcoin/minikit-js'
+import { encodeAbiParameters, parseAbiParameters, keccak256, toHex } from 'viem'
 
 // LayerZero Endpoint ID
 const EID = import.meta.env.VITE_EID || '30184'
@@ -22,8 +23,8 @@ export const TOKENS = {
 interface ShipStrategyParams {
   strategyType: 'stableswap' | 'concentrated'
   feeBps: number // Fee in basis points (e.g., 30 = 0.30%)
-  token0: string // Address of first token
-  token1: string // Address of second token
+  token0: string // Not used - kept for backwards compatibility
+  token1: string // Not used - kept for backwards compatibility
   // Additional params for concentrated liquidity
   priceLower?: string // For concentrated liquidity (in wei)
   priceUpper?: string // For concentrated liquidity (in wei)
@@ -32,7 +33,7 @@ interface ShipStrategyParams {
 }
 
 export async function shipStrategyToChain(params: ShipStrategyParams) {
-  const { strategyType, feeBps, token0, token1 } = params
+  const { strategyType, feeBps } = params
 
   // Get wallet address from localStorage (saved during WorldID auth)
   let maker: string
@@ -91,6 +92,11 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     ? CONTRACTS_BASE.STABLESWAP
     : CONTRACTS_BASE.CONCENTRATED_LIQUIDITY
 
+  // Create canonical token IDs (chain-agnostic identifiers)
+  // These match the Solidity script approach
+  const token0Id = keccak256(toHex('USDC'))
+  const token1Id = keccak256(toHex('USDT'))
+
   // Build strategy data based on type
   let strategyData: any
 
@@ -98,8 +104,8 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     const amplificationFactor = params.amplificationFactor || 100
     strategyData = {
       maker,
-      token0,
-      token1,
+      token0Id,
+      token1Id,
       feeBps,
       amplificationFactor,
       salt,
@@ -109,8 +115,8 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     const priceUpper = params.priceUpper || '1100000000000000000' // 1.1 * 1e18
     strategyData = {
       maker,
-      token0,
-      token1,
+      token0Id,
+      token1Id,
       feeBps,
       priceLower,
       priceUpper,
@@ -118,82 +124,56 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     }
   }
 
-  // ABI for the Composer contract on WorldChain (from AquaStrategyComposer.json)
-  const composerABI = [
-    {
-      type: 'function',
-      name: 'quoteShipStrategy',
-      inputs: [
-        { name: 'dstEid', type: 'uint32' },
-        { name: 'dstApp', type: 'address' },
-        { name: 'strategy', type: 'bytes' },
-        { name: 'tokenIds', type: 'bytes32[]' },
-        { name: 'amounts', type: 'uint256[]' },
-        { name: 'options', type: 'bytes' },
-        { name: 'payInLzToken', type: 'bool' },
-      ],
-      outputs: [
-        {
-          components: [
-            { name: 'nativeFee', type: 'uint256' },
-            { name: 'lzTokenFee', type: 'uint256' },
-          ],
-          name: 'fee',
-          type: 'tuple',
-        },
-      ],
-      stateMutability: 'view',
-    },
-    {
-      type: 'function',
-      name: 'shipStrategyToChain',
-      inputs: [
-        { name: 'dstEid', type: 'uint32' },
-        { name: 'dstApp', type: 'address' },
-        { name: 'strategy', type: 'bytes' },
-        { name: 'tokenIds', type: 'bytes32[]' },
-        { name: 'amounts', type: 'uint256[]' },
-        { name: 'options', type: 'bytes' },
-      ],
-      outputs: [
-        {
-          components: [
-            { name: 'guid', type: 'bytes32' },
-            { name: 'nonce', type: 'uint64' },
-            {
-              components: [
-                { name: 'nativeFee', type: 'uint256' },
-                { name: 'lzTokenFee', type: 'uint256' },
-              ],
-              name: 'fee',
-              type: 'tuple',
-            },
-          ],
-          name: 'receipt',
-          type: 'tuple',
-        },
-      ],
-      stateMutability: 'payable',
-    },
-  ]
+  // Import the full ABI
+  const ComposerJSON = await import('./AquaStrategyComposer.json')
+  const composerABI = ComposerJSON.abi
+
+  console.log('📋 Loaded ABI with', composerABI.length, 'functions')
+  console.log('📋 Looking for shipStrategyToChain...', composerABI.find((f: any) => f.name === 'shipStrategyToChain') ? 'FOUND ✅' : 'NOT FOUND ❌')
 
   try {
-    // Encode the strategy data as ABI-encoded bytes (NOT JSON!)
-    // This should match how the Solidity script encodes it: abi.encode(strategy)
-    // For now, we need to properly ABI-encode the strategy struct
-    // TODO: Use ethers.js or viem to properly ABI-encode the strategy
-    const strategyJson = JSON.stringify(strategyData)
-    const encodedStrategy = '0x' + Array.from(strategyJson)
-      .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
-      .join('')
+    // Encode the strategy data as ABI-encoded bytes
+    // This matches how the Solidity contract expects it: abi.encode(strategy)
+    let encodedStrategy: `0x${string}`
 
-    // Token IDs should be keccak256(abi.encodePacked("erc20", tokenAddress))
-    // For now, keeping empty as we're not sending initial liquidity
-    const tokenIds: string[] = []
+    if (strategyType === 'stableswap') {
+      // Encode stableswap strategy: (address maker, bytes32 token0Id, bytes32 token1Id, uint256 feeBps, uint256 amplificationFactor, bytes32 salt)
+      encodedStrategy = encodeAbiParameters(
+        parseAbiParameters('address, bytes32, bytes32, uint256, uint256, bytes32'),
+        [
+          strategyData.maker as `0x${string}`,
+          strategyData.token0Id as `0x${string}`,
+          strategyData.token1Id as `0x${string}`,
+          BigInt(strategyData.feeBps),
+          BigInt(strategyData.amplificationFactor),
+          strategyData.salt as `0x${string}`,
+        ]
+      )
+    } else {
+      // Encode concentrated liquidity strategy: (address maker, bytes32 token0Id, bytes32 token1Id, uint256 feeBps, uint256 priceLower, uint256 priceUpper, bytes32 salt)
+      encodedStrategy = encodeAbiParameters(
+        parseAbiParameters('address, bytes32, bytes32, uint256, uint256, uint256, bytes32'),
+        [
+          strategyData.maker as `0x${string}`,
+          strategyData.token0Id as `0x${string}`,
+          strategyData.token1Id as `0x${string}`,
+          BigInt(strategyData.feeBps),
+          BigInt(strategyData.priceLower),
+          BigInt(strategyData.priceUpper),
+          strategyData.salt as `0x${string}`,
+        ]
+      )
+    }
 
-    // Amounts of each token to send with the strategy
-    // For initial creation without liquidity, keep empty
-    const amounts: string[] = []
+    // Token IDs: canonical identifiers (matching Solidity script)
+    const tokenIds = [token0Id, token1Id]
+
+    // Amounts: virtual liquidity for cross-chain bookkeeping
+    // Using small amounts like in the Solidity script
+    const amounts = [
+      BigInt(2_000_000), // 2 USDC (6 decimals)
+      BigInt(2_000_000), // 2 USDT (6 decimals)
+    ]
 
     // LayerZero executorLzReceiveOption
     // Format: 0x0003 (option type 3) + 0x00000000000000000000000000000000000000000000000000000000000186a0 (gas limit: 100,000)
@@ -201,66 +181,98 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     const gasLimitHex = gasLimit.toString(16).padStart(64, '0')
     const options = '0x0003' + gasLimitHex
 
-    console.log('Shipping strategy cross-chain:', {
+    const transactionPayload = {
+      address: COMPOSER_WORLD,
+      abi: composerABI,
+      functionName: 'shipStrategyToChain',
+      args: [
+        parseInt(EID), // dstEid: Destination chain EID (Base)
+        targetContract, // dstApp: Target contract address on Base
+        encodedStrategy, // strategy: Encoded strategy data
+        tokenIds, // tokenIds: Array of token IDs
+        amounts, // amounts: Array of amounts
+        options, // options: LayerZero options with gas limit
+      ],
+      value: '0x' + Math.floor(0.1 * 10**18).toString(16), // 0.1 ETH for LayerZero fees (generous to ensure coverage)
+    }
+
+    console.log('🚀 Shipping strategy cross-chain:', {
       type: strategyType,
       dstEid: parseInt(EID),
       dstApp: targetContract,
-      strategy: encodedStrategy,
+      strategyEncoded: encodedStrategy,
+      strategyData,
       tokenIds,
       amounts,
       options,
       gasLimit,
+      value: transactionPayload.value,
     })
 
-    // Send transaction to Composer on WorldChain using MiniKit
-    // Value should cover the LayerZero fee (typically small, e.g., 0.01 ETH)
-    const value = '0x' + Math.floor(0.01 * 10**18).toString(16) // 0.01 ETH in hex
+    console.log('📱 Sending transaction to MiniKit...')
+    // Don't stringify payload with BigInt - just log it directly
+    console.log('Transaction payload:', transactionPayload)
 
-    const result = await MiniKit.commandsAsync.sendTransaction({
-      transaction: [
-        {
-          address: COMPOSER_WORLD,
-          abi: composerABI,
-          functionName: 'shipStrategyToChain',
-          args: [
-            parseInt(EID), // dstEid: Destination chain EID (Base)
-            targetContract, // dstApp: Target contract address on Base
-            encodedStrategy, // strategy: Encoded strategy data
-            tokenIds, // tokenIds: Array of token IDs
-            amounts, // amounts: Array of amounts
-            options, // options: LayerZero options with gas limit
-          ],
-          value, // Send ETH to cover LayerZero fees
-        },
-      ],
+    // Add timeout to prevent infinite waiting
+    const sendTransactionPromise = MiniKit.commandsAsync.sendTransaction({
+      transaction: [transactionPayload],
+      formatPayload: false, // CRITICAL: Disable payload formatting to avoid validation errors
     })
 
-    console.log('Transaction result:', result)
-    console.log('Command payload:', result.commandPayload)
-    console.log('Final payload:', result.finalPayload)
+    console.log('⏰ Waiting for user response (60s timeout)...')
 
-    // Check if transaction was successful
-    if (result.finalPayload && (result.finalPayload as any).status === 'success') {
-      const transactionId = (result.finalPayload as any).transaction_id
-      console.log('Transaction ID:', transactionId)
-      return {
-        success: true,
-        txHash: transactionId, // Note: This is transaction_id, not hash. Hash comes later after confirmation
-      }
-    } else {
-      const errorCode = (result.finalPayload as any)?.error_code || 'Unknown error'
-      const debugUrl = (result.finalPayload as any)?.debug_url
-      const errorDetails = (result.finalPayload as any)?.details
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Transaction timeout - user did not respond within 60 seconds')), 60000)
+    )
 
-      console.error('Transaction failed:', {
+    const { commandPayload, finalPayload } = await Promise.race([
+      sendTransactionPromise,
+      timeoutPromise
+    ]) as any
+
+    console.log('✅ Got response from MiniKit!')
+    console.log('Command payload:', commandPayload)
+    console.log('Final payload:', finalPayload)
+
+    // Check the status from finalPayload
+    if (!finalPayload) {
+      throw new Error('No finalPayload received from MiniKit')
+    }
+
+    const payload = finalPayload as any
+
+    // Check if user rejected or if there was an error
+    if (payload.status === 'error') {
+      const errorCode = payload.error_code || 'Unknown error'
+      const debugUrl = payload.debug_url
+      const errorDetails = payload.details
+
+      console.error('❌ Transaction failed:', {
         error_code: errorCode,
         debug_url: debugUrl,
         details: errorDetails,
-        full_payload: result.finalPayload
+        full_payload: payload
       })
 
-      throw new Error(`Transaction failed: ${errorCode}${debugUrl ? ` - Debug: ${debugUrl}` : ''}${errorDetails ? ` - ${errorDetails}` : ''}`)
+      if (errorDetails) {
+        console.error('📋 Error details:', JSON.stringify(errorDetails, null, 2))
+      }
+
+      throw new Error(`Transaction failed: ${errorCode}${debugUrl ? ` - Debug: ${debugUrl}` : ''}${errorDetails ? ` - ${JSON.stringify(errorDetails)}` : ''}`)
     }
+
+    // Success! Get the transaction ID
+    if (payload.status === 'success') {
+      const transactionId = payload.transaction_id
+      console.log('✅ Transaction ID:', transactionId)
+      return {
+        success: true,
+        txHash: transactionId, // This is the transaction_id, not the hash. Hash comes after confirmation
+      }
+    }
+
+    // If we get here, status is not success or error (maybe 'pending' or user closed modal?)
+    throw new Error(`Unexpected transaction status: ${payload.status || 'undefined'}`)
   } catch (error) {
     console.error('Error shipping strategy:', error)
     throw error

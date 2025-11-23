@@ -94,7 +94,7 @@ export function MarketMakersTab() {
         const token0Address = TOKENS[tokenFrom as keyof typeof TOKENS] || TOKENS.USDC
         const token1Address = TOKENS[tokenTo as keyof typeof TOKENS] || TOKENS.USDT
 
-        console.log('Shipping strategy with params:', {
+        console.log('🎯 Starting strategy creation with params:', {
           feeBps,
           token0: tokenFrom,
           token0Address,
@@ -103,6 +103,7 @@ export function MarketMakersTab() {
         })
 
         // Call the actual shipStrategyToChain function
+        console.log('⏳ Calling shipStrategyToChain...')
         const result = await shipStrategyToChain({
           strategyType: selectedType, // 'stableswap' or 'concentrated'
           feeBps,
@@ -110,19 +111,24 @@ export function MarketMakersTab() {
           token1: token1Address,
         })
 
+        console.log('✅ Got result from shipStrategyToChain:', result)
+
         if (result.success && result.txHash) {
+          console.log('🎉 Setting transaction hash:', result.txHash)
           setTxHash(result.txHash)
         } else {
+          console.error('❌ Result does not have success/txHash:', result)
           throw new Error('Transaction failed')
         }
       } catch (error) {
-        console.error('Error creating strategy:', error)
+        console.error('❌ Error creating strategy:', error)
         console.error('Error type:', typeof error)
         console.error('Error constructor:', error?.constructor?.name)
         console.error('Error message:', error instanceof Error ? error.message : JSON.stringify(error))
         console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
         setFeeError(error instanceof Error ? error.message : 'Failed to create strategy. Check console for details.')
       } finally {
+        console.log('🏁 Finished - setting isProcessing to false')
         setIsProcessing(false)
       }
     }
