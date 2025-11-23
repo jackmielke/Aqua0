@@ -1,5 +1,6 @@
 import { MiniKit } from '@worldcoin/minikit-js'
-import { encodeAbiParameters, parseAbiParameters, keccak256, toHex } from 'viem'
+import { encodeAbiParameters, parseAbiParameters, keccak256, toHex, encodeFunctionData, decodeFunctionResult } from 'viem'
+import {Options} from '@layerzerolabs/lz-v2-utilities'
 
 // LayerZero Endpoint ID
 const EID = import.meta.env.VITE_EID || '30184'
@@ -179,100 +180,135 @@ export async function shipStrategyToChain(params: ShipStrategyParams) {
     // Format: 0x0003 (option type 3) + 0x00000000000000000000000000000000000000000000000000000000000186a0 (gas limit: 100,000)
     const gasLimit = 200000 // 200k gas for execution on destination
     const gasLimitHex = gasLimit.toString(16).padStart(64, '0')
-    const options = '0x0003' + gasLimitHex
+    const options = Options.newOptions().addExecutorLzReceiveOption(300000,0).toHex()
 
-    const transactionPayload = {
-      address: COMPOSER_WORLD,
+    // First, get the exact quote from the contract
+    console.log('💰 Getting LayerZero fee quote...')
+
+    //print the params used here
+    console.log(parseInt(EID))
+    console.log(targetContract)
+
+
+    const quoteCallData = encodeFunctionData({
       abi: composerABI,
-      functionName: 'shipStrategyToChain',
+      functionName: 'quoteShipStrategy',
       args: [
-        parseInt(EID), // dstEid: Destination chain EID (Base)
-        targetContract, // dstApp: Target contract address on Base
-        encodedStrategy, // strategy: Encoded strategy data
-        tokenIds, // tokenIds: Array of token IDs
-        amounts, // amounts: Array of amounts
-        options, // options: LayerZero options with gas limit
+        parseInt(EID),
+        targetContract,
+        encodedStrategy,
+        tokenIds,
+        amounts,
+        options,
+        false, // payInLzToken
       ],
-      value: '0x' + Math.floor(0.1 * 10**18).toString(16), // 0.1 ETH for LayerZero fees (generous to ensure coverage)
+    })
+
+    const quoteResponse = await fetch('https://worldchain-mainnet.g.alchemy.com/v2/demo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_call',
+        params: [{
+          to: COMPOSER_WORLD,
+          data: quoteCallData,
+        }, 'latest'],
+        id: 1,
+      }),
+    })
+
+    const quoteResult = await quoteResponse.json()
+
+    if (quoteResult.error) {
+      console.error('Failed to get fee quote:', quoteResult.error)
+      throw new Error(`Failed to get LayerZero fee quote: ${quoteResult.error.message}`)
     }
 
-    console.log('🚀 Shipping strategy cross-chain:', {
-      type: strategyType,
-      dstEid: parseInt(EID),
-      dstApp: targetContract,
-      strategyEncoded: encodedStrategy,
-      strategyData,
-      tokenIds,
-      amounts,
-      options,
-      gasLimit,
-      value: transactionPayload.value,
-    })
+    // Decode the result (nativeFee, lzTokenFee)
+    const feeData = decodeFunctionResult({
+      abi: composerABI,
+      functionName: 'quoteShipStrategy',
+      data: quoteResult.result,
+    }) as any
+
+    const nativeFee = feeData.nativeFee
+    // Add 20% buffer for safety (like in the Solidity script)
+    const valueInWei = (nativeFee * BigInt(120)) / BigInt(100)
+    const valueInEth = Number(valueInWei) / 10**18
+
+    console.log('💰 LayerZero fee quote:')
+    console.log('  Native fee (exact):', nativeFee.toString(), 'wei')
+    console.log('  Native fee + 20% buffer:', valueInWei.toString(), 'wei')
+    console.log('  Total in ETH:', valueInEth)
+
+    console.log('🚀 Shipping strategy cross-chain:')
+    console.log('  Type:', strategyType)
+    console.log('  Destination EID:', parseInt(EID))
+    console.log('  Destination Contract:', targetContract)
+    console.log('  Maker:', maker)
+    console.log('  Token IDs:', tokenIds)
+    console.log('  Amounts:', amounts)
+    console.log('  Options:', options)
+    console.log('  Gas Limit:', gasLimit)
+    console.log('  Value (wei):', valueInWei.toString())
+    console.log('  Value (ETH):', valueInEth)
+    console.log('  Value (hex):', '0x' + valueInWei.toString(16))
+    console.log('  Strategy encoded length:', encodedStrategy.length)
+    console.log('  Strategy data:', strategyData)
 
     console.log('📱 Sending transaction to MiniKit...')
-    // Don't stringify payload with BigInt - just log it directly
-    console.log('Transaction payload:', transactionPayload)
 
-    // Add timeout to prevent infinite waiting
-    const sendTransactionPromise = MiniKit.commandsAsync.sendTransaction({
-      transaction: [transactionPayload],
-      formatPayload: false, // CRITICAL: Disable payload formatting to avoid validation errors
+    // Send transaction using MiniKit (following official World example)
+    const { finalPayload } = await MiniKit.commandsAsync.sendTransaction({
+      transaction: [
+        {
+          address: COMPOSER_WORLD,
+          abi: composerABI,
+          functionName: 'shipStrategyToChain',
+          args: [
+            parseInt(EID), // dstEid: Destination chain EID (Base)
+            targetContract, // dstApp: Target contract address on Base
+            encodedStrategy, // strategy: Encoded strategy data
+            tokenIds, // tokenIds: Array of token IDs
+            amounts, // amounts: Array of amounts
+            options, // options: LayerZero options with gas limit
+          ],
+          value: '0x' + valueInWei.toString(16), // 0.1 ETH as hex string
+        },
+      ],
     })
 
-    console.log('⏰ Waiting for user response (60s timeout)...')
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Transaction timeout - user did not respond within 60 seconds')), 60000)
-    )
-
-    const { commandPayload, finalPayload } = await Promise.race([
-      sendTransactionPromise,
-      timeoutPromise
-    ]) as any
-
     console.log('✅ Got response from MiniKit!')
-    console.log('Command payload:', commandPayload)
     console.log('Final payload:', finalPayload)
 
-    // Check the status from finalPayload
-    if (!finalPayload) {
-      throw new Error('No finalPayload received from MiniKit')
-    }
+    // Check for errors (following official example pattern)
+    if (finalPayload.status === 'error') {
+      console.error('❌ Transaction failed:', finalPayload)
+      console.error('📋 Error details:', finalPayload.details)
 
-    const payload = finalPayload as any
-
-    // Check if user rejected or if there was an error
-    if (payload.status === 'error') {
-      const errorCode = payload.error_code || 'Unknown error'
-      const debugUrl = payload.debug_url
-      const errorDetails = payload.details
-
-      console.error('❌ Transaction failed:', {
-        error_code: errorCode,
-        debug_url: debugUrl,
-        details: errorDetails,
-        full_payload: payload
-      })
-
-      if (errorDetails) {
-        console.error('📋 Error details:', JSON.stringify(errorDetails, null, 2))
+      // Try to extract meaningful error info
+      let errorMsg = `Transaction failed: ${finalPayload.error_code || 'Unknown error'}`
+      if (finalPayload.details) {
+        try {
+          errorMsg += ` - Details: ${JSON.stringify(finalPayload.details)}`
+        } catch (e) {
+          errorMsg += ` - Details available in console`
+        }
       }
 
-      throw new Error(`Transaction failed: ${errorCode}${debugUrl ? ` - Debug: ${debugUrl}` : ''}${errorDetails ? ` - ${JSON.stringify(errorDetails)}` : ''}`)
+      throw new Error(errorMsg)
     }
 
-    // Success! Get the transaction ID
-    if (payload.status === 'success') {
-      const transactionId = payload.transaction_id
-      console.log('✅ Transaction ID:', transactionId)
-      return {
-        success: true,
-        txHash: transactionId, // This is the transaction_id, not the hash. Hash comes after confirmation
-      }
-    }
+    // Success!
+    console.log('🎉 Transaction successful!')
+    const transactionId = finalPayload.transaction_id
+    console.log('Transaction ID:', transactionId)
 
-    // If we get here, status is not success or error (maybe 'pending' or user closed modal?)
-    throw new Error(`Unexpected transaction status: ${payload.status || 'undefined'}`)
+    return {
+      success: true,
+      txHash: transactionId,
+    }
   } catch (error) {
     console.error('Error shipping strategy:', error)
     throw error
