@@ -129,7 +129,7 @@ contract ShipStrategyToChainScript is Script {
                 token0Id: tokenIds[0],
                 token1Id: tokenIds[1],
                 feeBps: 4, // 0.04% fee (same as mainnet)
-                amplificationFactor: 100, // High A for stablecoins
+                amplificaxtionFactor: 100, // High A for stablecoins
                 salt: salt
             })
         );
@@ -158,7 +158,7 @@ contract ShipStrategyToChainScript is Script {
             dstApp,
             strategyBytes,
             tokenIds,
-            amounts,
+            amounts,xx
             options,
             false
         );
