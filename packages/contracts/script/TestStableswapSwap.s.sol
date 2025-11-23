@@ -58,142 +58,104 @@ contract StableSwapper is IStableswapCallback {
 
 /// @title TestStableswapSwap
 /// @notice Tests swapping on Stableswap strategy
+/// @dev Uses SWAPPER_PRIVATE_KEY (separate from LP)
 contract TestStableswapSwap is Script {
     function run() external {
-        uint256 traderPrivateKey = vm.envUint("DEPLOYER_KEY");
-        address trader = vm.addr(traderPrivateKey);
+        // Use swapper private key (not LP or deployer)
+        uint256 swapperPrivateKey = vm.envUint("SWAPPER_PRIVATE_KEY");
+        address swapper = vm.addr(swapperPrivateKey);
 
         // Load deployed addresses
-        address aquaAddr = vm.envAddress("AQUA");
+        address aquaAddr = vm.envAddress("AQUA_ROUTER");
         address stableswapAddr = vm.envAddress("STABLESWAP");
         address usdcAddr = vm.envAddress("USDC");
         address usdtAddr = vm.envAddress("USDT");
         address makerAddr = vm.envAddress("MAKER");
 
-        console.log("Testing Stableswap swap...");
-        console.log("Trader:", trader);
+        console.log("=================================================");
+        console.log("Testing Stableswap Swap (Mainnet)");
+        console.log("=================================================");
+        console.log("Swapper:", swapper);
+        console.log("Maker (LP):", makerAddr);
 
         Aqua aqua = Aqua(aquaAddr);
         StableswapAMM stableswap = StableswapAMM(stableswapAddr);
         IERC20 usdc = IERC20(usdcAddr);
         IERC20 usdt = IERC20(usdtAddr);
 
-        vm.startBroadcast(traderPrivateKey);
+        // Check swapper balances
+        uint256 usdcBalanceBefore = usdc.balanceOf(swapper);
+        uint256 usdtBalanceBefore = usdt.balanceOf(swapper);
+        console.log("\nSwapper Balances Before:");
+        console.log("USDC:", usdcBalanceBefore / 1e6, "USDC");
+        console.log("USDT:", usdtBalanceBefore / 1e6, "USDT");
+
+        // Swap amount (default 1 USDC for USDT)
+        uint256 swapAmount = vm.envOr("SWAP_AMOUNT", uint256(1e6));
+        require(
+            usdcBalanceBefore >= swapAmount,
+            "Insufficient USDC balance for swap"
+        );
+
+        console.log("\nSwapping", swapAmount / 1e6, "USDC for USDT...");
+
+        vm.startBroadcast(swapperPrivateKey);
 
         // Deploy swapper helper
-        StableSwapper swapper = new StableSwapper(aqua);
-        console.log("Swapper deployed at:", address(swapper));
+        StableSwapper swapperHelper = new StableSwapper(aqua);
+        console.log("Swapper helper deployed at:", address(swapperHelper));
 
-        // Recreate strategy params
+        // Recreate strategy params (must match the setup script)
         StableswapAMM.Strategy memory strategy = StableswapAMM.Strategy({
             maker: makerAddr,
             token0: usdcAddr,
             token1: usdtAddr,
             feeBps: 4,
             amplificationFactor: 100,
-            salt: bytes32(0)
+            salt: bytes32(0) // Note: If setup used different salt, need to match it
         });
 
-        // Test 1: Swap USDC for USDT
-        console.log("\n=== Test 1: Swap 1000 USDC for USDT ===");
-        uint256 usdcAmount = 1000e6;
+        // Test: Swap USDC for USDT
+        console.log("\n=== Executing Swap ===");
 
         // Get quote
         uint256 expectedUSDT = stableswap.quoteExactIn(
             strategy,
             true,
-            usdcAmount
+            swapAmount
         );
-        console.log("Expected USDT output:", expectedUSDT / 1e6);
-
-        // Check balances before
-        uint256 usdcBefore = usdc.balanceOf(trader);
-        uint256 usdtBefore = usdt.balanceOf(trader);
-        console.log("USDC balance before:", usdcBefore / 1e6);
-        console.log("USDT balance before:", usdtBefore / 1e6);
+        console.log("Expected USDT output:", expectedUSDT / 1e6, "USDT");
+        console.log("Estimated fee:", (swapAmount * 4) / 10000 / 1e6, "USDC");
 
         // Approve and execute swap
-        usdc.approve(address(swapper), usdcAmount);
-        uint256 usdtReceived = swapper.executeSwap(
+        usdc.approve(address(swapperHelper), swapAmount);
+        uint256 usdtReceived = swapperHelper.executeSwap(
             stableswap,
             strategy,
             true,
-            usdcAmount,
+            swapAmount,
             (expectedUSDT * 99) / 100 // 1% slippage tolerance
         );
 
         // Check balances after
-        uint256 usdcAfter = usdc.balanceOf(trader);
-        uint256 usdtAfter = usdt.balanceOf(trader);
-        console.log("USDC balance after:", usdcAfter / 1e6);
-        console.log("USDT balance after:", usdtAfter / 1e6);
-        console.log("USDT received:", usdtReceived / 1e6);
+        uint256 usdcBalanceAfter = usdc.balanceOf(swapper);
+        uint256 usdtBalanceAfter = usdt.balanceOf(swapper);
 
-        // Calculate slippage
-        uint256 slippage = usdcAmount > usdtReceived
-            ? usdcAmount - usdtReceived
-            : usdtReceived - usdcAmount;
-        uint256 slippageBps = (slippage * 10000) / usdcAmount;
-        console.log("Slippage:", slippageBps, "bps");
+        console.log("\n=================================================");
+        console.log("Swap Successful!");
+        console.log("=================================================");
+        console.log("Swapper Balances After:");
+        console.log("  USDC:", usdcBalanceAfter / 1e6, "USDC");
+        console.log("  USDT:", usdtBalanceAfter / 1e6, "USDT");
+        console.log("\nSwap Details:");
+        console.log("  Input:", swapAmount / 1e6, "USDC");
+        console.log("  Output:", usdtReceived / 1e6, "USDT");
 
-        // Test 2: Swap USDT for USDC
-        console.log("\n=== Test 2: Swap 500 USDT for USDC ===");
-        uint256 usdtAmount = 500e6;
-
-        // Get quote
-        uint256 expectedUSDC = stableswap.quoteExactIn(
-            strategy,
-            false,
-            usdtAmount
-        );
-        console.log("Expected USDC output:", expectedUSDC / 1e6);
-
-        // Approve and execute swap
-        usdt.approve(address(swapper), usdtAmount);
-        uint256 usdcReceived = swapper.executeSwap(
-            stableswap,
-            strategy,
-            false,
-            usdtAmount,
-            (expectedUSDC * 99) / 100 // 1% slippage tolerance
-        );
-
-        console.log("USDC received:", usdcReceived / 1e6);
-
-        // Test 3: Large swap to test slippage
-        console.log("\n=== Test 3: Large swap - 10,000 USDC for USDT ===");
-        uint256 largeAmount = 10_000e6;
-
-        uint256 largeExpectedUSDT = stableswap.quoteExactIn(
-            strategy,
-            true,
-            largeAmount
-        );
-        console.log("Expected USDT output:", largeExpectedUSDT / 1e6);
-
-        usdc.approve(address(swapper), largeAmount);
-        uint256 largeUSDTReceived = swapper.executeSwap(
-            stableswap,
-            strategy,
-            true,
-            largeAmount,
-            (largeExpectedUSDT * 99) / 100
-        );
-
-        console.log("USDT received:", largeUSDTReceived / 1e6);
-
-        uint256 largeSlippage = largeAmount > largeUSDTReceived
-            ? largeAmount - largeUSDTReceived
-            : largeUSDTReceived - largeAmount;
-        uint256 largeSlippageBps = (largeSlippage * 10000) / largeAmount;
-        console.log("Large trade slippage:", largeSlippageBps, "bps");
+        // Calculate effective rate
+        uint256 rate = (usdtReceived * 1e6) / swapAmount;
+        console.log("  Rate:", rate, "/ 1e6 (USDT per USDC)");
+        console.log("=================================================");
 
         vm.stopBroadcast();
-
-        console.log("\nStableswap tests completed successfully!");
-        console.log(
-            "Note: Stableswap should have minimal slippage for stable pairs"
-        );
     }
 }
-

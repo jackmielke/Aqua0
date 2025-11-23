@@ -7,98 +7,119 @@ import {Aqua} from "aqua/Aqua.sol";
 import {ConcentratedLiquiditySwap} from "../src/ConcentratedLiquiditySwap.sol";
 
 /// @title SetupConcentratedLiquidity
-/// @notice Sets up a ConcentratedLiquidity strategy with USDC/WETH pair
+/// @notice Sets up a Concentrated Liquidity strategy with USDC/USDT pair
+/// @dev Uses LP_PRIVATE_KEY for liquidity provider (not DEPLOYER_KEY)
 contract SetupConcentratedLiquidity is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        // Use LP private key (the one with tokens)
+        uint256 lpPrivateKey = vm.envUint("LP_PRIVATE_KEY");
+        address lpAddress = vm.addr(lpPrivateKey);
 
         // Load deployed addresses
-        address aquaAddr = vm.envAddress("AQUA");
-        address clSwapAddr = vm.envAddress("CONCENTRATED_LIQUIDITY");
+        address aquaAddr = vm.envAddress("AQUA_ROUTER");
+        address clAddr = vm.envAddress("CONCENTRATED_LIQUIDITY");
         address usdcAddr = vm.envAddress("USDC");
-        address wethAddr = vm.envAddress("WETH");
+        address usdtAddr = vm.envAddress("USDT");
 
-        console.log("Setting up ConcentratedLiquidity strategy...");
-        console.log("Maker:", deployer);
+        console.log("=================================================");
+        console.log("Setting up Concentrated Liquidity Strategy (Mainnet)");
+        console.log("=================================================");
+        console.log("LP (Maker):", lpAddress);
         console.log("Aqua:", aquaAddr);
-        console.log("Strategy:", clSwapAddr);
+        console.log("Strategy:", clAddr);
         console.log("USDC:", usdcAddr);
-        console.log("WETH:", wethAddr);
+        console.log("USDT:", usdtAddr);
 
         Aqua aqua = Aqua(aquaAddr);
         IERC20 usdc = IERC20(usdcAddr);
-        IERC20 weth = IERC20(wethAddr);
+        IERC20 usdt = IERC20(usdtAddr);
 
-        vm.startBroadcast(deployerPrivateKey);
+        // Check LP balances
+        uint256 usdcBalance = usdc.balanceOf(lpAddress);
+        uint256 usdtBalance = usdt.balanceOf(lpAddress);
+        console.log("\nLP Token Balances:");
+        console.log("USDC:", usdcBalance / 1e6, "USDC");
+        console.log("USDT:", usdtBalance / 1e6, "USDT");
 
-        // Initial liquidity amounts
-        uint256 usdcAmount = 100_000e6; // 100k USDC
-        uint256 wethAmount = 50 ether; // 50 WETH
+        // Initial liquidity amounts (adjust based on available balance)
+        uint256 usdcAmount = vm.envOr("USDC_LIQUIDITY", uint256(2e6)); // Default 2 USDC
+        uint256 usdtAmount = vm.envOr("USDT_LIQUIDITY", uint256(2e6)); // Default 2 USDT
+
+        require(usdcBalance >= usdcAmount, "Insufficient USDC balance");
+        require(usdtBalance >= usdtAmount, "Insufficient USDT balance");
+
+        console.log("\nProviding Liquidity:");
+        console.log("USDC:", usdcAmount / 1e6, "USDC");
+        console.log("USDT:", usdtAmount / 1e6, "USDT");
+
+        vm.startBroadcast(lpPrivateKey);
 
         // Approve Aqua to spend tokens
         usdc.approve(aquaAddr, type(uint256).max);
-        weth.approve(aquaAddr, type(uint256).max);
+        usdt.approve(aquaAddr, type(uint256).max);
         console.log("Approved Aqua to spend tokens");
 
-        // Create strategy with wide price range to handle decimal differences
-        // Price = (WETH balance * 1e18) / USDC balance
-        // = (50e18 * 1e18) / 100_000e6 = 5e26
-        ConcentratedLiquiditySwap.Strategy memory strategy = ConcentratedLiquiditySwap
-            .Strategy({
-                maker: deployer,
+        // Create strategy with tight price range for USDC/USDT stablecoins
+        ConcentratedLiquiditySwap.Strategy
+            memory strategy = ConcentratedLiquiditySwap.Strategy({
+                maker: lpAddress,
                 token0: usdcAddr,
-                token1: wethAddr,
-                feeBps: 30, // 0.3% fee
-                priceLower: 1e9, // Wide range to handle decimal precision
-                priceUpper: 1e28,
-                salt: bytes32(0)
+                token1: usdtAddr,
+                feeBps: 5, // 0.05% fee
+                priceLower: 0.99e18, // 0.99 USDT per USDC
+                priceUpper: 1.01e18, // 1.01 USDT per USDC
+                salt: bytes32(uint256(block.timestamp)) // Unique salt
             });
 
         // Ship strategy to Aqua
         address[] memory tokens = new address[](2);
         tokens[0] = usdcAddr;
-        tokens[1] = wethAddr;
+        tokens[1] = usdtAddr;
 
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = usdcAmount;
-        amounts[1] = wethAmount;
+        amounts[1] = usdtAmount;
 
         bytes32 strategyHash = aqua.ship(
-            clSwapAddr,
+            clAddr,
             abi.encode(strategy),
             tokens,
             amounts
         );
 
-        console.log("\nStrategy deployed!");
+        console.log("=================================================");
+        console.log("Strategy Deployed Successfully!");
+        console.log("=================================================");
         console.log("Strategy Hash:", vm.toString(strategyHash));
-        console.log("Liquidity provided:");
-        console.log("- 100,000 USDC");
-        console.log("- 50 WETH");
+        console.log("Maker (LP):", lpAddress);
+        console.log("Liquidity Provided:");
+        console.log("  USDC:", usdcAmount / 1e6, "USDC");
+        console.log("  USDT:", usdtAmount / 1e6, "USDT");
+        console.log("Fee: 0.05% (5 bps)");
+        console.log("Price Range: 0.99 - 1.01");
+        console.log("=================================================");
 
         vm.stopBroadcast();
 
         // Save strategy info
         string memory output = string.concat(
-            "STRATEGY_HASH=",
+            "CL_STRATEGY_HASH=",
             vm.toString(strategyHash),
             "\n",
-            "MAKER=",
-            vm.toString(deployer),
+            "CL_MAKER=",
+            vm.toString(lpAddress),
             "\n",
-            "TOKEN0=",
+            "CL_TOKEN0=",
             vm.toString(usdcAddr),
             "\n",
-            "TOKEN1=",
-            vm.toString(wethAddr),
+            "CL_TOKEN1=",
+            vm.toString(usdtAddr),
             "\n"
         );
 
         vm.writeFile("./script/concentrated-liquidity-strategy.txt", output);
         console.log(
-            "\nStrategy info saved to script/concentrated-liquidity-strategy.txt"
+            "Strategy info saved to script/concentrated-liquidity-strategy.txt"
         );
     }
 }
-

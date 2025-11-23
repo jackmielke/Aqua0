@@ -8,19 +8,23 @@ import {StableswapAMM} from "../src/StableswapAMM.sol";
 
 /// @title SetupStableswap
 /// @notice Sets up a Stableswap strategy with USDC/USDT pair
+/// @dev Uses LP_PRIVATE_KEY for liquidity provider (not DEPLOYER_KEY)
 contract SetupStableswap is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_KEY");
-        address deployer = vm.addr(deployerPrivateKey);
+        // Use LP private key (the one with tokens)
+        uint256 lpPrivateKey = vm.envUint("LP_PRIVATE_KEY");
+        address lpAddress = vm.addr(lpPrivateKey);
 
         // Load deployed addresses
-        address aquaAddr = vm.envAddress("AQUA");
+        address aquaAddr = vm.envAddress("AQUA_ROUTER");
         address stableswapAddr = vm.envAddress("STABLESWAP");
         address usdcAddr = vm.envAddress("USDC");
         address usdtAddr = vm.envAddress("USDT");
 
-        console.log("Setting up Stableswap strategy...");
-        console.log("Maker:", deployer);
+        console.log("=================================================");
+        console.log("Setting up Stableswap Strategy (Mainnet)");
+        console.log("=================================================");
+        console.log("LP (Maker):", lpAddress);
         console.log("Aqua:", aquaAddr);
         console.log("Strategy:", stableswapAddr);
         console.log("USDC:", usdcAddr);
@@ -30,11 +34,25 @@ contract SetupStableswap is Script {
         IERC20 usdc = IERC20(usdcAddr);
         IERC20 usdt = IERC20(usdtAddr);
 
-        vm.startBroadcast(deployerPrivateKey);
+        // Check LP balances
+        uint256 usdcBalance = usdc.balanceOf(lpAddress);
+        uint256 usdtBalance = usdt.balanceOf(lpAddress);
+        console.log("\nLP Token Balances:");
+        console.log("USDC:", usdcBalance / 1e6, "USDC");
+        console.log("USDT:", usdtBalance / 1e6, "USDT");
 
-        // Initial liquidity amounts
-        uint256 usdcAmount = 100_000e6; // 100k USDC
-        uint256 usdtAmount = 100_000e6; // 100k USDT
+        // Initial liquidity amounts (adjust based on available balance)
+        uint256 usdcAmount = vm.envOr("USDC_LIQUIDITY", uint256(2e6)); // Default 2 USDC
+        uint256 usdtAmount = vm.envOr("USDT_LIQUIDITY", uint256(2e6)); // Default 2 USDT
+
+        require(usdcBalance >= usdcAmount, "Insufficient USDC balance");
+        require(usdtBalance >= usdtAmount, "Insufficient USDT balance");
+
+        console.log("\nProviding Liquidity:");
+        console.log("USDC:", usdcAmount / 1e6, "USDC");
+        console.log("USDT:", usdtAmount / 1e6, "USDT");
+
+        vm.startBroadcast(lpPrivateKey);
 
         // Approve Aqua to spend tokens
         usdc.approve(aquaAddr, type(uint256).max);
@@ -43,12 +61,12 @@ contract SetupStableswap is Script {
 
         // Create strategy with high amplification for stable pairs
         StableswapAMM.Strategy memory strategy = StableswapAMM.Strategy({
-            maker: deployer,
+            maker: lpAddress,
             token0: usdcAddr,
             token1: usdtAddr,
             feeBps: 4, // 0.04% fee (typical for stableswaps)
             amplificationFactor: 100, // High A for minimal slippage
-            salt: bytes32(0)
+            salt: bytes32(uint256(block.timestamp)) // Unique salt
         });
 
         // Ship strategy to Aqua
@@ -67,12 +85,17 @@ contract SetupStableswap is Script {
             amounts
         );
 
-        console.log("\nStrategy deployed!");
+        console.log("=================================================");
+        console.log("Strategy Deployed Successfully!");
+        console.log("=================================================");
         console.log("Strategy Hash:", vm.toString(strategyHash));
-        console.log("Liquidity provided:");
-        console.log("- 100,000 USDC");
-        console.log("- 100,000 USDT");
+        console.log("Maker (LP):", lpAddress);
+        console.log("Liquidity Provided:");
+        console.log("  USDC:", usdcAmount / 1e6, "USDC");
+        console.log("  USDT:", usdtAmount / 1e6, "USDT");
+        console.log("Fee: 0.04% (4 bps)");
         console.log("Amplification Factor: 100");
+        console.log("=================================================");
 
         vm.stopBroadcast();
 
@@ -82,7 +105,7 @@ contract SetupStableswap is Script {
             vm.toString(strategyHash),
             "\n",
             "MAKER=",
-            vm.toString(deployer),
+            vm.toString(lpAddress),
             "\n",
             "TOKEN0=",
             vm.toString(usdcAddr),
@@ -93,7 +116,6 @@ contract SetupStableswap is Script {
         );
 
         vm.writeFile("./script/stableswap-strategy.txt", output);
-        console.log("\nStrategy info saved to script/stableswap-strategy.txt");
+        console.log("Strategy info saved to script/stableswap-strategy.txt");
     }
 }
-
